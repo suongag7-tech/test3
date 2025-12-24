@@ -53,7 +53,7 @@ body{
  animation:fadeIn 2s forwards 1s;
 }
 #intro button{
- margin-top:26px;
+ margin-top:18px;
  padding:14px 34px;
  border-radius:999px;
  border:1px solid rgba(212,175,55,.6);
@@ -69,6 +69,20 @@ body{
 }
 @keyframes fadeIn{to{opacity:1}}
 .hide{opacity:0;pointer-events:none;transition:1.5s}
+
+/* ▶️ PLAY MUSIC */
+#playMusic{
+ margin-top:12px;
+ padding:12px 30px;
+ border-radius:999px;
+ border:1px solid rgba(255,215,140,.8);
+ background:rgba(0,0,0,.55);
+ color:#ffd87a;
+ font-size:11px;
+ letter-spacing:2px;
+ cursor:pointer;
+ box-shadow:0 0 18px rgba(255,215,140,.35);
+}
 
 /* UI */
 #ui{
@@ -125,13 +139,13 @@ body{
 
 <body>
 
-<!-- 🎶 AUDIO (KHÔNG muted, KHÔNG autoplay) -->
 <audio id="music" src="music.mp3" loop playsinline></audio>
 
 <div id="intro">
  <h1>Merry Christmas</h1>
  <p>A little Christmas wish, just for you 💫🎄</p>
  <button id="openGift">🎁 XEM QUÀ</button>
+ <button id="playMusic">▶︎ PLAY MUSIC</button>
 </div>
 
 <div id="canvas-container"></div>
@@ -154,13 +168,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-/* STATE */
 let opened=false;
 let mode='TREE';
 let targetZoom=38;
 
 /* AUDIO */
 let audioCtx, analyser, dataArray;
+const audio=document.getElementById("music");
 
 /* THREE */
 let scene,camera,renderer,composer,group,star;
@@ -250,34 +264,36 @@ function uploadImages(){
  });
 }
 
-/* 🎶 OPEN GIFT – AUDIO CHẠY 100% MOBILE */
+/* 🎁 OPEN GIFT */
 function openGift(){
  if(!opened){
   opened=true;
   intro.classList.add("hide");
   document.querySelector(".upload").classList.add("show");
-
-  const audio=document.getElementById("music");
-
-  if(!audioCtx){
-   audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-   analyser=audioCtx.createAnalyser();
-   analyser.fftSize=64;
-   dataArray=new Uint8Array(analyser.frequencyBinCount);
-
-   const src=audioCtx.createMediaElementSource(audio);
-   src.connect(analyser);
-   analyser.connect(audioCtx.destination);
-  }
-
-  if(audioCtx.state==="suspended"){
-   audioCtx.resume();
-  }
-
-  audio.volume=1;
-  audio.play();
  }
  toggleTree();
+}
+
+/* ▶️ PLAY MUSIC – 100% MOBILE */
+function playMusic(){
+ if(!audioCtx){
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  analyser=audioCtx.createAnalyser();
+  analyser.fftSize=64;
+  dataArray=new Uint8Array(analyser.frequencyBinCount);
+
+  const src=audioCtx.createMediaElementSource(audio);
+  src.connect(analyser);
+  analyser.connect(audioCtx.destination);
+ }
+
+ if(audioCtx.state==="suspended"){
+  audioCtx.resume();
+ }
+
+ audio.volume=1;
+ audio.play();
+ document.getElementById("playMusic").style.display="none";
 }
 
 /* ANIMATE */
@@ -313,10 +329,10 @@ function events(){
   openGift();
  });
 
- addEventListener("pointerdown",e=>{
-  e.preventDefault();
-  openGift();
- },{passive:false});
+ document.getElementById("playMusic").addEventListener("click",e=>{
+  e.stopPropagation();
+  playMusic();
+ });
 }
 
 /* SNOW */
