@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Quà Noel Của Congchua 🎄</title>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+ background:#000;
+ overflow:hidden;
+ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+#canvas-container{width:100vw;height:100vh}
+
+/* ❄️ Snow */
+.snow{
+ position:fixed;
+ top:-10px;
+ color:white;
+ font-size:12px;
+ opacity:.8;
+ pointer-events:none;
+ animation:fall linear infinite;
+}
+@keyframes fall{to{transform:translateY(110vh)}}
+
+/* ✨ Intro */
+#intro{
+ position:fixed;
+ inset:0;
+ background:#000;
+ display:flex;
+ flex-direction:column;
+ justify-content:center;
+ align-items:center;
+ z-index:20;
+ text-align:center;
+}
+#intro h1{
+ color:#fceea7;
+ font-size:30px;
+ letter-spacing:3px;
+ opacity:0;
+ animation:fadeIn 2s forwards;
+}
+#intro p{
+ margin-top:10px;
+ font-size:13px;
+ color:rgba(255,220,150,.85);
+ opacity:0;
+ animation:fadeIn 2s forwards 1s;
+}
+#intro button{
+ margin-top:26px;
+ padding:14px 34px;
+ border-radius:999px;
+ border:1px solid rgba(212,175,55,.6);
+ background:rgba(0,0,0,.4);
+ color:#fceea7;
+ font-size:12px;
+ letter-spacing:2px;
+ cursor:pointer;
+ backdrop-filter:blur(6px);
+ opacity:0;
+ animation:fadeIn 2s forwards 2s;
+ box-shadow:0 0 18px rgba(255,215,140,.25);
+}
+@keyframes fadeIn{to{opacity:1}}
+.hide{opacity:0;pointer-events:none;transition:1.5s}
+
+/* UI */
+#ui{
+ position:fixed;
+ top:12px;
+ width:100%;
+ text-align:center;
+ z-index:5;
+ pointer-events:none;
+}
+#ui h2{
+ font-size:13px;
+ color:#fceea7;
+ letter-spacing:1px;
+ padding:0 16px;
+ text-shadow:0 0 16px rgba(255,220,150,.5);
+}
+
+.upload{
+ position:fixed;
+ bottom:24px;
+ left:50%;
+ transform:translateX(-50%);
+ opacity:0;
+ pointer-events:none;
+ transition:1s;
+ text-align:center;
+}
+.upload.show{opacity:1;pointer-events:auto}
+.upload label{
+ display:inline-block;
+ padding:12px 26px;
+ border-radius:999px;
+ border:1px solid rgba(212,175,55,.5);
+ color:#d4af37;
+ font-size:11px;
+ letter-spacing:2px;
+ background:rgba(0,0,0,.35);
+ backdrop-filter:blur(6px);
+}
+.upload input{display:none}
+.hint{margin-top:6px;font-size:10px;color:rgba(212,175,55,.6)}
+</style>
+
+<script type="importmap">
+{
+ "imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+ }
+}
+</script>
+</head>
+
+<body>
+
+<!-- 🎶 AUDIO (KHÔNG muted, KHÔNG autoplay) -->
+<audio id="music" src="music.mp3" loop playsinline></audio>
+
+<div id="intro">
+ <h1>Merry Christmas</h1>
+ <p>A little Christmas wish, just for you 💫🎄</p>
+ <button id="openGift">🎁 XEM QUÀ</button>
+</div>
+
+<div id="canvas-container"></div>
+
+<div id="ui">
+ <h2>May this winter be gentle to you — like a quiet presence, always there ✨</h2>
+</div>
+
+<div class="upload">
+ <label>
+  Thêm ảnh 🎁
+  <input type="file" id="file" accept="image/*" multiple>
+ </label>
+ <div class="hint">Chị bé chạm vào màn hình đi</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+/* STATE */
+let opened=false;
+let mode='TREE';
+let targetZoom=38;
+
+/* AUDIO */
+let audioCtx, analyser, dataArray;
+
+/* THREE */
+let scene,camera,renderer,composer,group,star;
+let clock=new THREE.Clock();
+let items=[],treeLights=[],photoMeshes=[];
+
+init(); snow(); animate();
+
+function init(){
+ scene=new THREE.Scene();
+ scene.fog=new THREE.FogExp2(0x000000,0.03);
+
+ camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,200);
+ camera.position.set(0,2,38);
+
+ renderer=new THREE.WebGLRenderer({antialias:false});
+ renderer.setSize(innerWidth,innerHeight);
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.4));
+ document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+ composer=new EffectComposer(renderer);
+ composer.addPass(new RenderPass(scene,camera));
+ composer.addPass(new UnrealBloomPass(
+  new THREE.Vector2(innerWidth,innerHeight),0.8,0.5,0.85
+ ));
+
+ group=new THREE.Group();
+ scene.add(group);
+
+ scene.add(new THREE.AmbientLight(0xffffff,.7));
+ const p=new THREE.PointLight(0xffcc66,1.6,40);
+ p.position.set(0,10,10);
+ scene.add(p);
+
+ createTree();
+ uploadImages();
+ events();
+}
+
+/* TREE */
+function createTree(){
+ const leaf=new THREE.ConeGeometry(0.35,1.25,7);
+ const bulb=new THREE.SphereGeometry(0.22,12,12);
+
+ for(let i=0;i<820;i++){
+  const t=i/820;
+  const y=t*24-12;
+  const r=(1-t)**1.15*8;
+  const a=t*Math.PI*28;
+  const isLight=Math.random()>.8;
+
+  const mat=isLight
+   ? new THREE.MeshStandardMaterial({color:0xfff1c1,emissive:0xffd36a,emissiveIntensity:.7})
+   : new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(.33-t*.06,.55,.18+t*.12),roughness:.9});
+
+  const m=new THREE.Mesh(isLight?bulb:leaf,mat);
+  m.position.set(Math.cos(a)*r,y,Math.sin(a)*r);
+  group.add(m);
+
+  if(isLight) treeLights.push(m);
+  items.push({mesh:m,tree:m.position.clone(),scatter:randPos()});
+ }
+
+ star=new THREE.Mesh(
+  new THREE.IcosahedronGeometry(1.3),
+  new THREE.MeshStandardMaterial({color:0xfff2b8,emissive:0xffd36a,emissiveIntensity:1.4})
+ );
+ star.position.set(0,13.4,0);
+ group.add(star);
+}
+
+/* IMAGE */
+function uploadImages(){
+ document.getElementById("file").addEventListener("change",e=>{
+  [...e.target.files].forEach(f=>{
+   new THREE.TextureLoader().load(URL.createObjectURL(f),tex=>{
+    tex.colorSpace=THREE.SRGBColorSpace;
+    const m=new THREE.Mesh(
+     new THREE.PlaneGeometry(3.6,3.6),
+     new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false})
+    );
+    m.position.copy(randPos());
+    group.add(m);
+    photoMeshes.push({mesh:m,tree:m.position.clone(),scatter:randPos()});
+   });
+  });
+ });
+}
+
+/* 🎶 OPEN GIFT – AUDIO CHẠY 100% MOBILE */
+function openGift(){
+ if(!opened){
+  opened=true;
+  intro.classList.add("hide");
+  document.querySelector(".upload").classList.add("show");
+
+  const audio=document.getElementById("music");
+
+  if(!audioCtx){
+   audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+   analyser=audioCtx.createAnalyser();
+   analyser.fftSize=64;
+   dataArray=new Uint8Array(analyser.frequencyBinCount);
+
+   const src=audioCtx.createMediaElementSource(audio);
+   src.connect(analyser);
+   analyser.connect(audioCtx.destination);
+  }
+
+  if(audioCtx.state==="suspended"){
+   audioCtx.resume();
+  }
+
+  audio.volume=1;
+  audio.play();
+ }
+ toggleTree();
+}
+
+/* ANIMATE */
+function animate(){
+ requestAnimationFrame(animate);
+ const dt=clock.getDelta();
+
+ group.rotation.y+=dt*.18;
+ camera.position.z+=(targetZoom-camera.position.z)*dt*2;
+
+ [...items,...photoMeshes].forEach(o=>{
+  o.mesh.position.lerp(mode==='TREE'?o.tree:o.scatter,dt*2);
+  o.mesh.lookAt(camera.position);
+ });
+
+ treeLights.forEach((l,i)=>{
+  l.material.emissiveIntensity=.6+Math.sin(clock.elapsedTime*2.6+i)*.4;
+ });
+
+ composer.render();
+}
+
+/* TOGGLE */
+function toggleTree(){
+ mode=mode==='TREE'?'SCATTER':'TREE';
+ targetZoom=mode==='TREE'?38:50;
+}
+
+/* EVENTS */
+function events(){
+ document.getElementById("openGift").addEventListener("click",e=>{
+  e.stopPropagation();
+  openGift();
+ });
+
+ addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  openGift();
+ },{passive:false});
+}
+
+/* SNOW */
+function snow(){
+ setInterval(()=>{
+  const s=document.createElement('div');
+  s.className='snow';
+  s.innerText='❄';
+  s.style.left=Math.random()*100+'vw';
+  s.style.animationDuration=6+Math.random()*6+'s';
+  document.body.appendChild(s);
+  setTimeout(()=>s.remove(),12000);
+ },450);
+}
+
+function randPos(){
+ const r=14+Math.random()*8;
+ const a=Math.random()*Math.PI*2;
+ const p=Math.acos(2*Math.random()-1);
+ return new THREE.Vector3(
+  r*Math.sin(p)*Math.cos(a),
+  r*Math.sin(p)*Math.sin(a),
+  r*Math.cos(p)
+ );
+}
+
+addEventListener('resize',()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+ composer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
